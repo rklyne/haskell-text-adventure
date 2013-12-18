@@ -1,4 +1,4 @@
-import Control.Monad.State.Strict
+import System.IO
 
 type Item = String
 type Items = [Item]
@@ -110,6 +110,7 @@ play_game level =
     where
         starting_state = do
             putStr "Enter your name> "
+            hFlush stdout
             name <- getLine
             return (blank_state name level)
         play_frames state = do
