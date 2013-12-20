@@ -11,13 +11,16 @@ default_action text = print_message ("Unrecognised command: " ++ text)
 data Screen = Screen {
     items:: Items,
     text:: String,
-    north_exit:: Maybe Screen,
-    south_exit:: Maybe Screen,
-    east_exit:: Maybe Screen,
-    west_exit:: Maybe Screen,
-
+    exit:: Direction -> Maybe Screen,
     action:: Action
     }
+
+data Direction = North | South | East | West deriving (Show, Eq, Enum)
+directions = [North .. ]
+opposite North = South
+opposite East = West
+opposite South = North
+opposite West = East
 
 describe_screen screen = text screen ++ "\n" ++ (exits_description screen)
     where
@@ -28,21 +31,9 @@ describe_screen screen = text screen ++ "\n" ++ (exits_description screen)
         comma_join [str] = str
         comma_join (str:strs) = str ++ ", " ++ (comma_join strs)
         exits :: Screen -> [String]
-        exits screen = let
-                (n, s, e, w) = (
-                    north_exit screen,
-                    south_exit screen,
-                    east_exit screen,
-                    west_exit screen
-                    )
-                check Nothing = True
-                check _ = False
-            in concat [
-                if check n then [] else ["North"],
-                if check s then [] else ["South"],
-                if check e then [] else ["East"],
-                if check w then [] else ["West"]
-                ]
+        exits screen = map show [d | d <- directions, check (exit screen d)]
+        check Nothing = False
+        check _ = True
 
 data GameState = GameState {
     character:: Character,
@@ -56,41 +47,37 @@ type Command = (GameState -> IO GameState)
 
 blank_state character start = GameState character start [] False
 
--- Level builder
--- type LevelSetup = ([Screen], Screen)
--- data IdGenerator = IdGenerator Integer
--- apply_id_space (State s f) = result
---     where (result, state) = f (IdGenerator 1)
-
--- next_id = State (\(IdGenerator g) -> (g, (IdGenerator (succ g))))
-
-add_north_exit exit screen = screen{north_exit=(Just exit)}
+add_exit direction exit_screen screen = screen{exit=new_exit}
+    where new_exit d = if d == direction then Just exit_screen else exit screen direction
+add_north_exit = add_exit North
 new_level = Screen{
     items=[],
     action=default_action,
     text="!!!! >> NO ROOM DESCRIPTION PROVIDED",
-    north_exit=no_exit,
-    south_exit=no_exit,
-    east_exit=no_exit,
-    west_exit=no_exit
+    exit=no_exit
     }
-    where no_exit = Nothing
+    where no_exit = \_ -> Nothing
 test_level =
-    mk_start new_level{text="Screen 1"} where
-        mk_start = add_north_exit new_level{text="screen 2"}
+    mk_start new_level{text="You are at screen 1. This is the first screen. Obviously."} where
+        mk_start = add_north_exit new_level{text="Screen 2 is the second screen and is significantly less interesting."}
 
 -- Commands (game actions)
 
 move_to :: Screen -> Command
 move_to screen state = return (state{current_screen=screen})
-exit_command screen = case screen of
-    Nothing -> print_message "You can't go that way"
-    Just screen -> move_to screen
 
-move_north state = (exit_command . north_exit) (current_screen state) state
-move_south state = (exit_command . south_exit) (current_screen state) state
-move_west state = (exit_command . west_exit) (current_screen state) state
-move_east state = (exit_command . east_exit) (current_screen state) state
+
+move_in_direction :: Direction -> Command
+move_in_direction direction state = exit_command ((exit (current_screen state)) direction) state
+    where
+    exit_command :: Maybe Screen -> Command
+    exit_command screen = case screen of
+        Nothing -> print_message "You can't go that way"
+        Just screen -> move_to screen
+move_north = move_in_direction North
+move_south = move_in_direction South
+move_west = move_in_direction East
+move_east = move_in_direction East
 
 print_message msg state = 
     do
@@ -109,9 +96,7 @@ play_game level =
         putStrLn "  .~ fin ~."
     where
         starting_state = do
-            putStr "Enter your name> "
-            hFlush stdout
-            name <- getLine
+            name <- prompt "Enter your name> "
             return (blank_state name level)
         play_frames state = do
             new_state <- play_frame state
@@ -126,7 +111,7 @@ play_game level =
 
         prompt_for_command :: GameState -> IO Command
         prompt_for_command state = do
-            input <- getLine
+            input <- prompt (character state ++ "> ")
             return (parse_input input)
             where
                 parse_input :: String -> Command
@@ -143,6 +128,10 @@ play_game level =
                     "quit" -> quit
                     otherwise -> action (current_screen state) input
                     )
+        prompt message = do
+            putStr message
+            hFlush stdout
+            getLine
 
 main :: IO ()
 main = play_game test_level
