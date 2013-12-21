@@ -47,8 +47,18 @@ type Command = (GameState -> IO GameState)
 
 blank_state character start = GameState character start [] False
 
-add_exit direction exit_screen screen = screen{exit=new_exit}
-    where new_exit d = if d == direction then Just exit_screen else exit screen direction
+add_exit direction exit_screen screen = new_screen
+    where
+    new_screen = screen{exit=new_exit}
+    new_exit d =
+        if d == direction
+        then Just modified_exit_screen
+        else exit screen d
+    modified_exit_screen = exit_screen{exit=return_exit}
+    return_exit d =
+        if d == (opposite direction)
+        then Just new_screen
+        else exit exit_screen d
 add_north_exit = add_exit North
 new_level = Screen{
     items=[],
@@ -68,8 +78,9 @@ move_to screen state = return (state{current_screen=screen})
 
 
 move_in_direction :: Direction -> Command
-move_in_direction direction state = exit_command ((exit (current_screen state)) direction) state
+move_in_direction direction state = exit_command ((exit here) direction) state
     where
+    here = current_screen state
     exit_command :: Maybe Screen -> Command
     exit_command screen = case screen of
         Nothing -> print_message "You can't go that way"
