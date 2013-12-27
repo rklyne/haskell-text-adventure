@@ -1,4 +1,4 @@
 
-Game: Main.hs Game.hs Level.hs
-	ghc $^
+Game: *.hs
+	ghc -o Game Main.hs
 
