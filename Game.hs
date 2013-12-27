@@ -98,12 +98,19 @@ parseCommand input = (case (map toLower input) of
 
 -- The Game
 playGame :: Screen -> IO ()
-playGame level =
+playGame = gameRunner lineReader lineWriter
+    where
+    lineReader = getLine
+    lineWriter txt = (putStr txt) >> (hFlush stdout)
+
+gameRunner :: IO String -> (String -> IO ()) -> Screen -> IO ()
+gameRunner lineReader lineWriter level =
     do
         state <- startingState
         finalState <- playFrames state
-        putStrLn "  .~ fin ~."
+        lineWriterLn "  .~ fin ~."
     where
+        lineWriterLn msg = lineWriter (msg ++ "\n")
         startingState :: IO GameState
         startingState = do
             name <- prompt "Enter your name> "
@@ -116,19 +123,17 @@ playGame level =
             else
                 playFrames newState
         playFrame state = do
-            putStrLn (output state)
-            putStrLn (describeScreen (currentScreen state))
+            lineWriterLn (output state)
+            lineWriterLn (describeScreen (currentScreen state))
             command <- promptForCommand (state{output=""})
             return $ command state
 
-        -- promptForCommand :: GameState -> IO Command
         promptForCommand state = do
             input <- prompt (character state ++ "> ")
             return (parseCommand input)
         prompt message = do
-            putStr message
-            hFlush stdout
-            getLine
+            lineWriter message
+            lineReader
 
 
 --------------------------------
